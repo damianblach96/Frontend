@@ -1,0 +1,75 @@
+def imageName="192.168.44.44:8082/docker/backend"
+def dockerRegistry="https://192.168.44.44:8082"
+def registryCredentials="artifactory"
+def dockerTag=""
+
+pipeline {
+    agent {
+  label 'agent'
+}
+
+environment {
+  ScannerHome = tool 'SonarQube'
+}
+
+
+    stages {
+        stage('Get Code') {
+            steps {
+                chekout scm
+            }
+        }
+    
+    
+        stage('ListFiles') {
+            steps {
+                sh 'ls -la'
+            }
+        }
+        
+        stage('RunUnitTests') {
+            steps {
+                sh 'pip3 install -r requirements.txt && python3 -m pytest --cov=. --cov-report xml:test-results/coverage.xml --junitxml=test-results/pytest-report.xml'
+
+            }
+        }
+        
+        stage('SonarQubeScan') {
+            steps {
+                
+            withSonarQubeEnv("SonarQube"){
+                   sh "${scannerHome}/bin/sonar-scanner"
+                    }
+                timeout(1) {
+                    waitForQualityGate abortPipeline: true
+              }
+            }
+        }
+        stage('Build application image'){
+            steps {
+                script {
+                    // Prepare basic image for application
+                    dockerTag = "1.0"
+                    
+                    applicationImage=docker.build("$imageName:$dockerTag",".")
+                }
+            }
+        }
+        stage('pushImage'){
+            steps {
+                script {
+                withDockerRegistry(credentialsId: 'artifactory', url: "$dockerRegistry") {
+                applicationImage.push()
+            }
+                }
+            }
+        }
+    }
+
+post {
+        always {
+            junit testResults: "test-results/*.xml"
+            cleanWs()
+        }
+    }
+}
