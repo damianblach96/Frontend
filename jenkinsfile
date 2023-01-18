@@ -58,7 +58,7 @@ environment {
         stage('pushImage'){
             steps {
                 script {
-                withDockerRegistry(credentialsId: 'artifactory', url: "$dockerRegistry") {
+                withDockerRegistry(credentialsId: "$registryCredentials", url: "$dockerRegistry") {
                 applicationImage.push()
             }
                 }
